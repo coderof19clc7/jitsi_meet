@@ -26,7 +26,7 @@ class JitsiMeetPluginActivity : JitsiMeetActivity() {
             context: Context?,
             options: JitsiMeetConferenceOptions?
         ) {
-            var intent =
+            val intent =
                 Intent(context, JitsiMeetPluginActivity::class.java).apply {
                     action = "org.jitsi.meet.CONFERENCE"
                     putExtra("JitsiMeetConferenceOptions", options)
@@ -38,7 +38,7 @@ class JitsiMeetPluginActivity : JitsiMeetActivity() {
         }
     }
 
-    var onStopCalled: Boolean = false;
+    private var onStopCalled: Boolean = false
     private val eventStreamHandler = JitsiMeetEventStreamHandler.instance
     private val broadcastReceiver: BroadcastReceiver =
         object : BroadcastReceiver() {
@@ -51,7 +51,41 @@ class JitsiMeetPluginActivity : JitsiMeetActivity() {
         super.onCreate(savedInstanceState)
         registerForBroadcastMessages()
         eventStreamHandler.onOpened()
-        turnScreenOnAndKeyguardOff();
+        turnScreenOnAndKeyguardOff()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        onStopCalled = false
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration?) {
+        println("onPictureInPictureModeChanged: $isInPictureInPictureMode")
+        try {
+            if (isInPictureInPictureMode){
+                JitsiMeetEventStreamHandler.instance.onPictureInPictureWillEnter()
+            }
+            else {
+                JitsiMeetEventStreamHandler.instance.onPictureInPictureTerminated()
+            }
+
+            if (!isInPictureInPictureMode && onStopCalled) {
+                // Picture-in-Picture mode has been closed, we can (should !) end the call
+                finish()
+            }
+            super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        } catch (e: Exception) {
+            println("onPictureInPictureModeChangedException: $e")
+            if (onStopCalled) {
+                finish()
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        println("onStopCalled")
+        onStopCalled = true
     }
 
     private fun registerForBroadcastMessages() {
@@ -86,11 +120,15 @@ class JitsiMeetPluginActivity : JitsiMeetActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        LocalBroadcastManager.getInstance(this)
-            .unregisterReceiver(this.broadcastReceiver)
-        eventStreamHandler.onClosed()
-        turnScreenOffAndKeyguardOn();
+        try {
+            LocalBroadcastManager.getInstance(this)
+                .unregisterReceiver(this.broadcastReceiver)
+            eventStreamHandler.onClosed()
+            turnScreenOffAndKeyguardOn()
+            super.onDestroy()
+        } catch (e: Exception) {
+            println("onDestroyException: $e")
+        }
     }
 
     private fun turnScreenOnAndKeyguardOff() {
@@ -102,7 +140,7 @@ class JitsiMeetPluginActivity : JitsiMeetActivity() {
             // If you want to display the keyguard to prompt the user to unlock the phone:
             val keyguardManager =
                 getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-            keyguardManager?.requestDismissKeyguard(this, null)
+            keyguardManager.requestDismissKeyguard(this, null)
         } else {
             // For older versions, do it as you did before.
             window.addFlags(

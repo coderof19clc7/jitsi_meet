@@ -10,4 +10,8 @@ import Flutter
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
+    override func applicationWillTerminate(_ application: UIApplication) {
+        // Perform any final cleanup here
+        print("App killed.")
+    }
 }
